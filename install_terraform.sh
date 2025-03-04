@@ -1,23 +1,43 @@
 #!/bin/bash
 
-# Exit on error
-set -e
+set -e  # Exit on error
 
-echo "Updating package lists..."
-sudo apt update && sudo apt install -y gnupg software-properties-common
+# Define Terraform version
+TERRAFORM_VERSION="1.6.6"
 
-echo "Adding HashiCorp GPG key..."
-wget -O- https://apt.releases.hashicorp.com/gpg | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg
+# Detect system architecture (for ARM/M1 support)
+ARCH=$(uname -m)
+if [[ "$ARCH" == "aarch64" ]]; then
+    ARCH="arm64"
+else
+    ARCH="amd64"
+fi
 
-echo "Adding HashiCorp repository..."
-echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+# Detect OS type
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 
-echo "Updating package lists again..."
-sudo apt update
+echo "Detected OS: $OS"
+echo "Detected Architecture: $ARCH"
 
-echo "Installing Terraform..."
-sudo apt install -y terraform
+# Download Terraform binary
+echo "Downloading Terraform $TERRAFORM_VERSION..."
+wget -q "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_${OS}_${ARCH}.zip" -O terraform_install.zip
 
+# Extract the binary
+echo "Extracting Terraform..."
+unzip -o terraform_install.zip
+
+# Move Terraform to a directory in PATH
+echo "Moving Terraform to /usr/local/bin..."
+sudo mv terraform /usr/local/bin/
+
+# Set executable permission
+sudo chmod +x /usr/local/bin/terraform
+
+# Clean up
+rm -f terraform_install.zip
+
+# Verify installation
 echo "Verifying Terraform installation..."
 terraform -version
 
