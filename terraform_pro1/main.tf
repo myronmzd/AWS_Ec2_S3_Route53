@@ -27,48 +27,12 @@ resource "aws_subnet" "private_subnet" {
   map_public_ip_on_launch = false
 }
 
-
-# resource "aws_subnet" "public_subnet" {
-#   vpc_id     = aws_vpc.main.id
-#   cidr_block = "10.0.2.0/24"
-#   availability_zone = "ap-south-1a"
-#   map_public_ip_on_launch = true # This will ensure instances launched in this subnet automatically get public IPs.
-#   tags = {
-#     Name = "Main"
-#   }
-# }
-
-# ------------------------------
-# Internet Gatewat
-# ------------------------------
-
-# resource "aws_internet_gateway" "IGW_main" {
-#   vpc_id = aws_vpc.main.id
-#   tags = {
-#     Name = "Main"
-#   } 
-# }
-
-
-# ---------------------------------
-# Route Table public and private 
-# ---------------------------------
-
-# resource "aws_route_table" "main" {
-#   vpc_id = aws_vpc.main.id
-#   route {
-#     cidr_block = "0.0.0.0/0"
-#     gateway_id = aws_internet_gateway.IGW_main.id
-#   }
-#   tags = {
-#     Name = "IGW_route_table"
-#   }
-# }
-
-# resource "aws_route_table_association" "a" {
-#   subnet_id      = aws_subnet.main.id
-#   route_table_id = aws_route_table.main.id
-# } 
+resource "aws_subnet" "public_subnet" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.2.0/24"
+  availability_zone = "ap-south-1b"
+  map_public_ip_on_launch = true
+}
 
 
 # Private Route Table (for EC2 in private subnet)
@@ -105,64 +69,76 @@ resource "aws_route_table_association" "private_association" {
 
 resource "aws_vpc_endpoint" "s3_endpoint" {
   vpc_id           = aws_vpc.main.id
-  service_name     = "com.amazonaws.ap-south-1a.s3"
+  service_name     = "com.amazonaws.ap-south-1.s3"
   vpc_endpoint_type = "Gateway"
 
   route_table_ids = [aws_route_table.private_route_table.id]  # <--- Adds the route!
 }
-# Route 53 Resolver Endpoint (Costs $$)
-resource "aws_vpc_endpoint" "route53_endpoint" {
-  vpc_id          = aws_vpc.main.id
-  service_name    = "com.amazonaws.ap-south-1a.route53-recurser"
+
+# SSM Endpoint
+resource "aws_vpc_endpoint" "ssm" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.ap-south-1.ssm"
   vpc_endpoint_type = "Interface"
-  subnet_ids        = [aws_subnet.private_subnet.id]  # ✅ Needs a subnet
-  security_group_ids = [aws_security_group.ec2_route53_sg.id]
-}
-
-# ------------------------------
-# Security Group for Route 53 Interface Endpoint
-# ------------------------------
-resource "aws_security_group" "ec2_route53_sg" {
-  vpc_id = aws_vpc.main.id
-
-  ingress {
-    from_port   = 53
-    to_port     = 53
-    protocol    = "udp"
-    cidr_blocks = ["10.0.0.0/16"]  # Allow DNS resolution within VPC
-  }
-
-  egress {
-    from_port   = 53
-    to_port     = 53
-    protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  subnet_ids        = [aws_subnet.private_subnet.id]
+  security_group_ids = [aws_security_group.ssm_sg.id]
 }
 
 # ------------------------------
 # Security Group for EC2 (Allow DNS & S3)
 # ------------------------------
-resource "aws_security_group" "ec2_sg" {
+resource "aws_security_group" "alb_sg" {
   vpc_id = aws_vpc.main.id
 
   ingress {
-    from_port   = 53
-    to_port     = 53
-    protocol    = "udp"
-    cidr_blocks = ["10.0.0.0/16"]
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
     from_port   = 0
     to_port     = 0
-    protocol    = "-1" 
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
-    }
-  
+  }
+
+  tags = { Name = "alb_sg" }
 }
 
+resource "aws_security_group" "ec2_sg" {
+  vpc_id = aws_vpc.main.id
 
+  # Allow only ALB to communicate with EC2 on port 80
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    security_groups = [aws_security_group.alb_sg.id]
+  }
+
+  # Allow SSM and S3 access within VPC
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = { Name = "ec2_sg" }
+}
+
+# ------------------------------    
+# EC2 Instance
+# ----------------------------------------------------------
 resource "aws_instance" "main_ap_south_1" {
   ami           = "ami-00bb6a80f01f03502"
   instance_type = "t2.micro"
@@ -171,9 +147,26 @@ resource "aws_instance" "main_ap_south_1" {
   iam_instance_profile = aws_iam_instance_profile.ec2_s3_profile.name  # Attach the IAM instance profile
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
   subnet_id     = aws_subnet.private_subnet.id
-    tags = {
-        Name = "main_instance"
-    }
+  user_data = <<-EOF
+    #!/bin/bash
+    sudo apt update -y
+    sudo snap install amazon-ssm-agent
+    sudo systemctl enable amazon-ssm-agent
+    sudo systemctl start amazon-ssm-agent
+  EOF
+
+  tags = {
+      Name = "main_instance"
+  }
+}
+
+
+resource "aws_ssm_association" "run_on_startup" {
+  name = aws_ssm_document.run_script.name
+  targets {
+    key    = "InstanceIds"
+    values = [aws_instance.private_instance.id]
+  }
 }
 
 resource "aws_s3_bucket" "mybucketmain1212" {
@@ -236,46 +229,105 @@ resource "aws_iam_instance_profile" "ec2_s3_profile" {
   role = aws_iam_role.ec2_s3_access_role.name
 }
 
-resource "null_resource" "setup_web_server" {
-  depends_on = [aws_instance.main_ap_south_1]
 
- 
+resource "aws_ssm_document" "run_script" {
+  name          = "RunScriptOnEC2"
+  document_type = "Command"
 
-  provisioner "remote-exec" {
-      connection {
-        type        = "ssh"
-        user        = "ubuntu"
-        private_key = file("${path.module}/Mykey.pem")
-        host        = aws_instance.main_ap_south_1.public_ip
-        timeout     = "4m"
+  content = <<DOC
+  {
+    "schemaVersion": "2.2",
+    "description": "Run a script on EC2",
+    "mainSteps": [{
+      "action": "aws:runShellScript",
+      "name": "runScript",
+      "inputs": {
+        "runCommand": [
+        # Update package list okey
+        "sudo apt update -y",
+        "sudo apt upgrade -y",
+
+        # Install Nginx only if not installed okey
+        "if ! command -v nginx &> /dev/null; then sudo apt install -y nginx; fi",
+
+        # Install AWS CLIand unzip  only if not installed okey
+        "if ! command -v aws &>/dev/null; then sudo apt update && sudo apt install -y unzip && curl -s 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip' && unzip -o awscliv2.zip && sudo ./aws/install --update && rm -rf aws awscliv2.zip; fi",
+
+        
+        # Start and enable Nginx if not already running
+        "if ! systemctl is-active --quiet nginx; then sudo systemctl start nginx; fi",
+        "if ! systemctl is-enabled --quiet nginx; then sudo systemctl enable nginx; fi",
+
+        # Copy file from S3 if it doesn't already exist
+        "if [ ! -f /var/www/html/index.html ]; then aws s3 cp s3://mybucketmain1212/home.html /tmp/home.html; fi",
+        "if [ ! -f /var/www/html/index.html ]; then sudo mv /tmp/home.html /var/www/html/index.html; fi",
+
+        "sudo rm -rf /var/www/html/index.nginx-debian.html",
+
+        # Set correct permissions
+        "sudo chmod 644 /var/www/html/index.html",
+        "sudo chown www-data:www-data /var/www/html/index.html"
+       
+        ]
       }
+    }]
+  }
+  DOC
+}
 
-      inline = [
-                # Update package list okey
-              "sudo apt update -y",
-              "sudo apt upgrade -y",
 
-              # Install Nginx only if not installed okey
-              "if ! command -v nginx &> /dev/null; then sudo apt install -y nginx; fi",
 
-              # Install AWS CLIand unzip  only if not installed okey
-              "if ! command -v aws &>/dev/null; then sudo apt update && sudo apt install -y unzip && curl -s 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip' && unzip -o awscliv2.zip && sudo ./aws/install --update && rm -rf aws awscliv2.zip; fi",
+# Update EC2 security group to allow traffic from ALB
+resource "aws_security_group_rule" "allow_alb" {
+  type                     = "ingress"
+  from_port               = 80
+  to_port                 = 80
+  protocol                = "tcp"
+  source_security_group_id = aws_security_group.alb_sg.id
+  security_group_id       = aws_security_group.ec2_sg.id
+}
 
-              
-              # Start and enable Nginx if not already running
-              "if ! systemctl is-active --quiet nginx; then sudo systemctl start nginx; fi",
-              "if ! systemctl is-enabled --quiet nginx; then sudo systemctl enable nginx; fi",
 
-              # Copy file from S3 if it doesn't already exist
-              "if [ ! -f /var/www/html/index.html ]; then aws s3 cp s3://mybucketmain1212/home.html /tmp/home.html; fi",
-              "if [ ! -f /var/www/html/index.html ]; then sudo mv /tmp/home.html /var/www/html/index.html; fi",
 
-              "sudo rm -rf /var/www/html/index.nginx-debian.html",
+# Create ALB
+resource "aws_lb" "main_lb" {
+  name               = "main-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = [aws_subnet.private_subnet.id, aws_subnet.public_subnet.id]
+}
 
-              # Set correct permissions
-              "sudo chmod 644 /var/www/html/index.html",
-              "sudo chown www-data:www-data /var/www/html/index.html"
-    ]
+# Create target group
+resource "aws_lb_target_group" "main_lb_tg" {
+  name     = "main-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.main.id
+
+  health_check {
+    path                = "/"
+    healthy_threshold   = 2
+    unhealthy_threshold = 10
+  }
+}
+
+# Attach EC2 to target group
+resource "aws_lb_target_group_attachment" "main" {
+  target_group_arn = aws_lb_target_group.main_lb_tg.arn
+  target_id        = aws_instance.main_ap_south_1.id
+  port             = 80
+}
+
+# Create ALB listener
+resource "aws_lb_listener" "front_end" {
+  load_balancer_arn = aws_lb.main_lb.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.main_lb_tg.arn
   }
 }
 
@@ -285,21 +337,15 @@ data "aws_route53_zone" "my_domain" {
   private_zone = false
 }
 
-# # Route53 A Record pointing to EC2 instance
-# resource "aws_route53_record" "www" {
-#   zone_id = data.aws_route53_zone.my_domain.zone_id
-#   name    = "www.myronmzd.com"  # Your subdomain
-#   type    = "A"
-#   ttl     = "300"
-#   records = [aws_instance.main_ap_south_1.public_ip]
-# }
-
-
-# Route53 A Record for root domain
+# Update Route53 record to point to ALB
 resource "aws_route53_record" "root" {
   zone_id = data.aws_route53_zone.my_domain.zone_id
   name    = "home.myronmzd.com"
   type    = "A"
-  ttl     = "300"
-  records = [aws_instance.main_ap_south_1.public_ip]
+
+  alias {
+    name                   = aws_lb.main_lb.dns_name
+    zone_id                = aws_lb.main_lb.zone_id
+    evaluate_target_health = true
+  }
 }
