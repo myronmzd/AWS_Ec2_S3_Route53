@@ -4,3 +4,7 @@ terraform_pro1/.terraform.lock.hcl
 # This file is maintained automatically by "terraform init".
 terraform_pro1/Mykey.pem
 # this file is key pair file
+terraform_pro1/terraform.tfstate
+# this file is maintained automatically by "terraform apply"
+terraform_pro1/terraform.tfstate.backup
+# this file is maintained automatically by "terraform apply"    
