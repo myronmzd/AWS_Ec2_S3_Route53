@@ -21,7 +21,7 @@ resource "aws_vpc" "main" {
 # ------------------------------
 
 resource "aws_subnet" "private_subnet" {
-  vpc_id                  = aws_vpc.my_vpc.id
+  vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
   availability_zone = "ap-south-1a"
   map_public_ip_on_launch = false
@@ -169,8 +169,8 @@ resource "aws_instance" "main_ap_south_1" {
   key_name      = "Mykey"
   availability_zone = "ap-south-1a"
   iam_instance_profile = aws_iam_instance_profile.ec2_s3_profile.name  # Attach the IAM instance profile
-  vpc_security_group_ids = [aws_security_group.allow_all.id]
-  subnet_id     = aws_subnet.main.id
+  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
+  subnet_id     = aws_subnet.private_subnet.id
     tags = {
         Name = "main_instance"
     }
