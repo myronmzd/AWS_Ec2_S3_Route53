@@ -136,6 +136,25 @@ resource "aws_security_group" "ec2_sg" {
   tags = { Name = "ec2_sg" }
 }
 
+
+resource "aws_security_group" "ssm_sg" {
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
 # ------------------------------    
 # EC2 Instance
 # ----------------------------------------------------------
@@ -165,7 +184,7 @@ resource "aws_ssm_association" "run_on_startup" {
   name = aws_ssm_document.run_script.name
   targets {
     key    = "InstanceIds"
-    values = [aws_instance.private_instance.id]
+    values = [aws_instance.main_ap_south_1.id]
   }
 }
 
@@ -182,29 +201,27 @@ resource "aws_s3_object" "files" {
 }
 
 
-# IAM Role for EC2
-resource "aws_iam_role" "ec2_s3_access_role" {
-  name = "ec2_s3_access_role"
+# ------------------------------
+
+# IAM Role for EC2 with S3 and SSM Access
+resource "aws_iam_role" "ec2_role" {
+  name = "ec2_role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
+    Statement = [{
+      Effect = "Allow"
+      Action = "sts:AssumeRole"
+      Principal = { Service = "ec2.amazonaws.com" }
+    }]
   })
 }
 
-# IAM Policy for S3 access
-resource "aws_iam_role_policy" "s3_access_policy" {
-  name = "s3_access_policy"
-  role = aws_iam_role.ec2_s3_access_role.id
-
+# IAM Policy for EC2 (Combining S3 and SSM permissions)
+resource "aws_iam_policy" "ec2_policy" {
+  name        = "ec2_policy"
+  description = "Policy for EC2 to access S3 and SSM"
+  
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -219,14 +236,43 @@ resource "aws_iam_role_policy" "s3_access_policy" {
           "${aws_s3_bucket.mybucketmain1212.arn}",
           "${aws_s3_bucket.mybucketmain1212.arn}/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:DescribeInstanceInformation",
+          "ssm:GetCommandInvocation",
+          "ssm:ListCommands",
+          "ssm:ListCommandInvocations",
+          "ssm:SendCommand"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2messages:GetMessages",
+          "ec2messages:SendReply",
+          "ec2messages:DeleteMessage",
+          "ec2messages:FailMessage",
+          "ssm:UpdateInstanceInformation"
+        ]
+        Resource = "*"
       }
     ]
   })
 }
+
+# Attach IAM Policy to IAM Role
+resource "aws_iam_role_policy_attachment" "ec2_policy_attachment" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = aws_iam_policy.ec2_policy.arn
+}
+
 # IAM Instance Profile
-resource "aws_iam_instance_profile" "ec2_s3_profile" {
-  name = "ec2_s3_profile"
-  role = aws_iam_role.ec2_s3_access_role.name
+resource "aws_iam_instance_profile" "ec2_profile" {
+  name = "ec2_profile"
+  role = aws_iam_role.ec2_role.name
 }
 
 

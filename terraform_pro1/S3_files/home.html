@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book with Searchable Chapters</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f9f9f9;
+      margin: 0;
+      padding: 20px;
+    }
+
+    #book-container {
+      max-width: 800px;
+      margin: auto;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 3.5em; /* Increase main title size */
+    }
+
+    #search-bar {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 1.2em; /* Increase input text size */
+    }
+
+    .chapter {
+      background: #ffffff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+      display: none; /* Hide by default */
+    }
+
+    .chapter.visible {
+      display: block;
+    }
+
+    h2 {
+      font-size: 2em; /* Increase chapter title size */
+    }
+
+    p {
+      font-size: 1.2em; /* Increase chapter text size */
+    }
+  </style>
+</head>
+<body>
+
+  <div id="book-container">
+    <h1>My Book</h1>
+    <input type="text" id="search-bar" placeholder="Search for a chapter...">
+    <input type="file" id="pdf-input" />
+
+    <!-- Chapters will be dynamically added here -->
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+
+  <script>
+    const searchBar = document.getElementById('search-bar');
+    const bookContainer = document.getElementById('book-container');
+    const pdfInput = document.getElementById('pdf-input');
+
+    // Load PDF.js library
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+    pdfInput.addEventListener('change', async function () {
+      const file = this.files[0];
+      if (file) {
+        const fileReader = new FileReader();
+        fileReader.onload = async function () {
+          const typedArray = new Uint8Array(this.result);
+          const pdf = await pdfjsLib.getDocument(typedArray).promise;
+
+          let fullText = '';
+          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map(item => item.str).join(' ');
+            fullText += pageText + '\n';
+          }
+
+          // Search for chapters in the extracted text
+          displayChapters(fullText);
+        };
+        fileReader.readAsArrayBuffer(file);
+      }
+    });
+
+    function displayChapters(text) {
+      const chapterRegex = /(Chapter \d+: [\w\s]+)/g;
+      const matches = text.match(chapterRegex);
+
+      // Clear the previous content
+      bookContainer.innerHTML = '<h1>Extracted Book Chapters</h1><input type="text" id="search-bar" placeholder="Search for a chapter...">';
+
+      // Add chapters if found
+      if (matches) {
+        matches.forEach(chapter => {
+          const chapterDiv = document.createElement('div');
+          chapterDiv.className = 'chapter';
+          chapterDiv.dataset.title = chapter.toLowerCase();
+          chapterDiv.innerHTML = `<h2>${chapter}</h2><p>Chapter content goes here...</p>`;
+          bookContainer.appendChild(chapterDiv);
+        });
+      }
+
+      // Event listener for searching chapters
+      searchBar.addEventListener('input', () => {
+        const query = searchBar.value.toLowerCase();
+        const chapters = document.querySelectorAll('.chapter');
+        chapters.forEach(chapter => {
+          const title = chapter.dataset.title.toLowerCase();
+          if (title.includes(query)) {
+            chapter.classList.add('visible');
+          } else {
+            chapter.classList.remove('visible');
+          }
+        });
+      });
+    }
+  </script>
+
+</body>
+</html>
