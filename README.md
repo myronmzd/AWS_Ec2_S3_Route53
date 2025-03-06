@@ -22,6 +22,7 @@ This Terraform configuration file (`main.tf`) provisions an AWS infrastructure t
 
 ### 5. **S3 VPC Endpoint**
 - A Gateway VPC Endpoint (`aws_vpc_endpoint.s3_endpoint`) allows private subnet instances to communicate with S3 without using the internet.
+![alt text](image.png)
 
 ### 6. **EC2 Instance**
 - A single EC2 instance (`aws_instance.main_ap_south_1`) with:

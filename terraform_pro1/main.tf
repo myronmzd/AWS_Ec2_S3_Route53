@@ -13,8 +13,8 @@ resource "aws_vpc" "main" {
   tags = {
     Name = "main"
   }
-
 }
+
 
 # --------------------------------
 # Public Subnet (Connected to IGW)
@@ -150,7 +150,7 @@ resource "aws_security_group" "ec2_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["45.127.45.18/32"] # Update with your public IP
   }
 
   # HTTP access
@@ -289,9 +289,8 @@ resource "null_resource" "setup_web_server" {
       }
 
       inline = [
-                # Update package list okey
-              "sudo apt update -y",
-              "sudo apt upgrade -y",
+              # Update package list okey
+              "sudo apt update -y && sudo apt upgrade -y",
 
               # Install Nginx only if not installed okey
               "if ! command -v nginx &> /dev/null; then sudo apt install -y nginx; fi",
@@ -362,3 +361,19 @@ resource "aws_route53_record" "root" {
 # ❌ Not Free (Costs per hour + per query)
 # ✅ Needs to be deployed in a Subnet
 # ❌ Does not need a Route Table (Handled by AWS via private DNS)
+
+#-----------------------------------------------------------
+# Flow Logs (VPC Traffic Monitoring) can't afford it
+#-----------------------------------------------------------
+
+# resource "aws_flow_log" "vpc_flow_log" {
+#   vpc_id          = aws_vpc.main.id
+#   traffic_type    = "ALL"
+#   log_destination_type = "cloud-watch-logs"
+#   log_destination = aws_cloudwatch_log_group.vpc_logs.arn
+# }
+
+# resource "aws_cloudwatch_log_group" "vpc_logs" {
+#   name = "/aws/vpc/flow-logs"
+#   retention_in_days = 30
+# }
