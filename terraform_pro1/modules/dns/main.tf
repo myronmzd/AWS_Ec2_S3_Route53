@@ -10,3 +10,5 @@ resource "aws_route53_record" "root" {
   ttl     = "300"
   records = [var.public_ip]
 }
+
+DASFDS

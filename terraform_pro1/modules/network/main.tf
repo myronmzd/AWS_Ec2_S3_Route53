@@ -44,7 +44,7 @@ resource "aws_route_table_association" "private_association" {
   route_table_id = aws_route_table.private_route_table.id
 }
 
-
+sfdafdafd
 resource "aws_security_group" "ec2_sg" {
   name   = "ec2_security_group"
   vpc_id = aws_vpc.main.id

@@ -10,7 +10,7 @@ terraform {
 provider "aws" {
   region = "ap-south-1"
 }
-
+SDFA
 module "network" {
   source = "./modules/network"
   vpc_cidr           = var.vpc_cidr

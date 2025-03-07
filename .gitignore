@@ -10,3 +10,5 @@ terraform_pro1/terraform.tfstate.backup
 # this file is maintained automatically by "terraform apply"    
 *.pem
 terraform_pro1\modules\compute\Mykey.pem
+
+DASFDS

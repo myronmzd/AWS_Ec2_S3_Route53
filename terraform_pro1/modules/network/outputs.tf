@@ -12,7 +12,7 @@ output "public_subnet_id" {
   description = "Public Subnet ID"
   value       = aws_subnet.public_subnet.id
 }
-
+dsfadf
 output "igw" {
   description = "igw ID"
   value       = aws_internet_gateway.igw.id
