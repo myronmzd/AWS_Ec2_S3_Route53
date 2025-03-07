@@ -1,12 +1,12 @@
 .terraform/
 # This file is maintained automatically by "terraform init".
-terraform_pro1/.terraform.lock.hcl
+terraform_project/.terraform.lock.hcl
 # This file is maintained automatically by "terraform init".
-terraform_pro1/modules/compute/Mykey.pem
+terraform_project/modules/compute/Mykey.pem
 # this file is key pair file
-terraform_pro1/terraform.tfstate
+terraform_project/terraform.tfstate
 # this file is maintained automatically by "terraform apply"
-terraform_pro1/terraform.tfstate.backup
+terraform_project/terraform.tfstate.backup
 # this file is maintained automatically by "terraform apply"    
 *.pem
 terraform_project\modules\compute\Mykey.pem
