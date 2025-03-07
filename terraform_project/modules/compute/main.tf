@@ -6,7 +6,7 @@ resource "aws_network_interface" "public_eni" {
     Name = "public_eni"
   }
 }
-SDAFGA
+
 resource "aws_network_interface" "private_eni" {
   subnet_id       = var.subnet_private_id
   security_groups = [var.security_group_id]

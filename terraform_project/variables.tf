@@ -18,7 +18,7 @@ variable "private_subnet_cidr" {
   description = "The CIDR block for the private subnet"
   type        = string
 }
-DSFADS
+
 variable "domain_name" {
   description = "Domain name"
   type        = string

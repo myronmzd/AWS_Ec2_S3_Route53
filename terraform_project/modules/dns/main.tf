@@ -11,4 +11,3 @@ resource "aws_route53_record" "root" {
   records = [var.public_ip]
 }
 
-DASFDS

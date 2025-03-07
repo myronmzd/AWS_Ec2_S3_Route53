@@ -13,7 +13,7 @@ resource "aws_s3_object" "files" {
 # Add bucket policy for additional security
 resource "aws_s3_bucket_policy" "bucket_policy" {
   bucket = aws_s3_bucket.mybucketmain1212.id
-fdasfdsa
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [

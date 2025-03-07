@@ -8,3 +8,5 @@ terraform_pro1/terraform.tfstate
 # this file is maintained automatically by "terraform apply"
 terraform_pro1/terraform.tfstate.backup
 # this file is maintained automatically by "terraform apply"    
+*.pem
+terraform_project\modules\compute\Mykey.pem

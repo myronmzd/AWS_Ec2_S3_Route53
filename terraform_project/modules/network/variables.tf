@@ -13,4 +13,3 @@ variable "private_subnet_cidr" {
   type        = string
 }
 
-fdasfdsa
